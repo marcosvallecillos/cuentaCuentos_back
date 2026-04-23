@@ -1,0 +1,54 @@
+# =========================
+# BACKEND (Python)
+# =========================
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+ENV/
+
+# Variables de entorno (sensibles)
+.env
+.env.*
+!.env.example
+
+# Cache de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Build / distribución
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs
+*.log
+logs/
+
+# Base de datos local
+*.sqlite3
+*.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+tmp/
+temp/
+.cache/
