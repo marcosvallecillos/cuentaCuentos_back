@@ -46,17 +46,21 @@ class AIService:
         FORMATO EXACTO:
         [Inicio de la historia]
         [PAUSA_INTERACCION]
-        [Pregunta para elegir siguiente personaje]
+        [Pregunta para elegir siguiente paso]
+        [OPCIONES] Opción corta 1 | Opción corta 2
         
         AHORA, crea la historia para "{personaje}" en "{lugar}":"""
 
+        print(f"--- Generando inicio para {personaje} en {lugar} ---")
         completion = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "user", "content": prompt}
             ],
         )
+        print("--- Historia generada con éxito ---")
         return completion.choices[0].message.content.strip()
+
 
     
     def continuar_historia(self, historia_actual: str, nuevo_personaje: str, 
@@ -84,7 +88,7 @@ class AIService:
 
         FORMATO:
         [Continuación natural integrando {nuevo_personaje}]
-        {"[FIN]" if es_ultima_interaccion else "[PAUSA_INTERACCION]\n[Nueva pregunta de elección]"}
+        {"[FIN]" if es_ultima_interaccion else "[PAUSA_INTERACCION]\n[Nueva pregunta de elección]\n[OPCIONES] Opción corta 1 | Opción corta 2"}
 
         CONTINÚA LA HISTORIA:"""
 

@@ -18,6 +18,7 @@ class StoryResponse(BaseModel):
     audio_text: str
     necesita_interaccion: bool
     prompt_interaccion: Optional[str] = None
+    opciones: Optional[List[str]] = None
     progreso: dict
 
 class StorySegment(BaseModel):
