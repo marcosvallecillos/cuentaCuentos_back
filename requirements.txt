@@ -5,3 +5,8 @@ google-generativeai==0.3.1
 pydantic==2.5.0
 python-multipart==0.0.6
 Pillow==10.1.0
+# Para ejecutar
+#pip install -r requirements.txt
+#py -m venv venv
+#venv\Scripts\activate
+#uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
