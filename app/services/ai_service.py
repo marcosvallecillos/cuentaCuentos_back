@@ -1,11 +1,11 @@
-import google.generativeai as genai
+from groq import Groq
 from app.config import settings
 from typing import Dict
-
 class AIService:
     def __init__(self):
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.client = Groq(api_key=settings.GROQ_API_KEY)
+        self.model = "llama-3.1-8b-instant"
+        print("✅ Groq inicializado")
     
     def get_age_group(self, edad: int) -> str:
         """Determina el grupo de edad"""
@@ -50,8 +50,13 @@ class AIService:
         
         AHORA, crea la historia para "{personaje}" en "{lugar}":"""
 
-        response = self.model.generate_content(prompt)
-        return response.text.strip()
+        completion = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+        )
+        return completion.choices[0].message.content.strip()
 
     
     def continuar_historia(self, historia_actual: str, nuevo_personaje: str, 
@@ -83,8 +88,13 @@ class AIService:
 
         CONTINÚA LA HISTORIA:"""
 
-        response = self.model.generate_content(prompt)
-        return response.text.strip()
+        completion = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+        )
+        return completion.choices[0].message.content.strip()
 
     
     def detectar_objeto_en_dibujo(self, descripcion_usuario: str) -> str:
