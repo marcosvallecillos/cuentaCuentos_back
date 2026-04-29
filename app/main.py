@@ -1,17 +1,16 @@
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.models import StoryRequest, ContinueStoryRequest, StoryResponse
-from app.services.story_service import story_service
+from app.routers import stories, catalog, admin
 from app.config import settings
+from app.database import init_db
 
 app = FastAPI(
     title="Drawn Worlds API",
-    description="API para generación de cuentos interactivos infantiles",
-    version="1.0.0"
+    description="API para generación de cuentos interactivos infantiles con panel admin",
+    version="2.0.0"
 )
 
-# CORS para Angular
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:4200"],
@@ -20,56 +19,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Inicializar BD al arrancar
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+    print("✅ Base de datos inicializada")
+
+# Incluir routers
+app.include_router(stories.router)
+app.include_router(catalog.router)
+app.include_router(admin.router)
+
 @app.get("/")
 async def root():
     return {
-        "mensaje": "Drawn Worlds API",
-        "version": "1.0.0",
-        "status": "activo"
+        "mensaje": "Drawn Worlds API v2.0",
+        "version": "2.0.0",
+        "status": "activo",
+        "features": [
+            "Generación de historias con IA",
+            "Panel de administración",
+            "Catálogo de elementos",
+            "Historial completo"
+        ]
     }
 
-@app.post("/api/generar-historia", response_model=StoryResponse)
-async def generar_historia(request: StoryRequest):
-    """
-    Genera el inicio de una historia basada en las selecciones iniciales
-    """
-    try:
-        resultado = story_service.crear_historia_inicial(
-            personaje=request.personaje,
-            lugar=request.lugar,
-            emocion=request.emocion,
-            edad=request.edad
-        )
-        
-        return resultado
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al generar historia: {str(e)}")
-
-@app.post("/api/continuar-historia", response_model=StoryResponse)
-async def continuar_historia(request: ContinueStoryRequest):
-    """
-    Continúa la historia incorporando un nuevo personaje elegido
-    """
-    try:
-        resultado = story_service.continuar_historia(
-            historia_actual=request.historia_actual,
-            nuevo_personaje=request.nuevo_objeto, # Reutilizamos campo o actualizamos modelo
-            edad=request.edad,
-            interaccion_numero=request.interaccion_numero
-        )
-        
-        return resultado
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al continuar historia: {str(e)}")
-
-@app.get("/api/grupos-edad")
-async def obtener_grupos_edad():
-    """
-    Retorna la configuración de grupos de edad
-    """
-    return settings.AGE_GROUPS
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "database": "connected"}
 
 if __name__ == "__main__":
     import uvicorn
