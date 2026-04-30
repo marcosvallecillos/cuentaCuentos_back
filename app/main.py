@@ -44,6 +44,8 @@ async def generar_historia(request: StoryRequest):
         return resultado
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error al generar historia: {str(e)}")
 
 @app.post("/api/continuar-historia", response_model=StoryResponse)
