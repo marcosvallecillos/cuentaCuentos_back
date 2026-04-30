@@ -11,9 +11,10 @@ cryptography==41.0.7
 alembic==1.13.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
 groq==0.9.0
 # Para ejecutar
 #pip install -r requirements.txt
 #py -m venv venv
 #venv\Scripts\activate
-#uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+#

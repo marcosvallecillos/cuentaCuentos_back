@@ -21,6 +21,12 @@ class StoryInteractionResponse(StoryInteractionBase):
     class Config:
         from_attributes = True
 
+class StorySetupRequest(BaseModel):
+    personaje: str
+    lugar: str
+    emocion: str
+    edad: int
+
 class StoryCreate(BaseModel):
     edad_usuario: int
     grupo_edad: str
@@ -28,13 +34,21 @@ class StoryCreate(BaseModel):
     duracion_segundos: Optional[int] = None
 
 class StoryResponse(BaseModel):
-    id: int
-    edad_usuario: int
-    grupo_edad: str
-    texto_completo: str
-    created_at: datetime
-    duracion_segundos: Optional[int]
+    id: Optional[int] = None
+    edad_usuario: Optional[int] = None
+    grupo_edad: Optional[str] = None
+    texto_completo: Optional[str] = None
+    created_at: Optional[datetime] = None
+    duracion_segundos: Optional[int] = None
     interacciones: List[StoryInteractionResponse] = []
+    
+    # Campos que el frontend espera según el servicio de IA
+    historia: Optional[str] = None
+    audio_text: Optional[str] = None
+    necesita_interaccion: Optional[bool] = None
+    prompt_interaccion: Optional[str] = None
+    opciones: Optional[List[str]] = None
+    progreso: Optional[dict] = None
     
     class Config:
         from_attributes = True

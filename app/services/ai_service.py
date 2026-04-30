@@ -25,101 +25,128 @@ class AIService:
     
     def get_catalog_context(self, db: Session) -> str:
         """Obtener contexto del catálogo para enriquecer prompts"""
-        protagonistas = crud.get_catalog_items(db, tipo=models.CatalogType.PROTAGONISTA)
-        lugares = crud.get_catalog_items(db, tipo=models.CatalogType.LUGAR)
-        emociones = crud.get_catalog_items(db, tipo=models.CatalogType.EMOCION)
-        
-        context = "\n\nCONTEXTO DE CATÁLOGO DISPONIBLE:\n"
-        
-        if protagonistas:
-            context += "Protagonistas sugeridos: " + ", ".join([p.nombre for p in protagonistas[:10]]) + "\n"
-        
-        if lugares:
-            context += "Lugares mágicos: " + ", ".join([l.nombre for l in lugares[:10]]) + "\n"
-        
-        if emociones:
-            context += "Emociones a explorar: " + ", ".join([e.nombre for e in emociones[:10]]) + "\n"
-        
-        return context
+        try:
+            protagonistas = crud.get_catalog_items(db, tipo=models.CatalogType.PROTAGONISTA)
+            lugares = crud.get_catalog_items(db, tipo=models.CatalogType.LUGAR)
+            emociones = crud.get_catalog_items(db, tipo=models.CatalogType.EMOCION)
+            
+            context = "\n\nCONTEXTO DE CATALOGO DISPONIBLE:\n"
+            
+            if protagonistas:
+                context += "Protagonistas sugeridos: " + ", ".join([p.nombre for p in protagonistas[:10]]) + "\n"
+            
+            if lugares:
+                context += "Lugares magicos: " + ", ".join([l.nombre for l in lugares[:10]]) + "\n"
+            
+            if emociones:
+                context += "Emociones a explorar: " + ", ".join([e.nombre for e in emociones[:10]]) + "\n"
+            
+            return context
+        except Exception as e:
+            print(f"⚠️ Error obteniendo catalogo: {e}")
+            return ""
     
     def generar_historia_inicial(self, objeto: str, edad: int, db: Optional[Session] = None) -> str:
         """Genera el inicio de una historia interactiva"""
         config = self.get_age_config(edad)
         
-        prompt = f"""Eres un narrador mágico de cuentos infantiles. 
+        # Contexto adicional del catálogo
+        catalog_context = ""
+        if db:
+            catalog_context = self.get_catalog_context(db)
+            # Incrementar uso si el objeto está en el catálogo
+            try:
+                crud.increment_catalog_usage(db, objeto)
+            except Exception as e:
+                print(f"⚠️ No se pudo incrementar uso del catalogo: {e}")
         
-        PERSONAJE PRINCIPAL: {personaje}
-        LUGAR: {lugar}
-        EMOCIÓN: {emocion}
-        EDAD DEL NIÑO: {edad} años
-        VOCABULARIO: {config['vocabulary']}
-        LONGITUD: aproximadamente {config['story_length']} palabras
-        
-        INSTRUCCIONES CRÍTICAS:
-        1. Crea el INICIO de una historia mágica donde el protagonista es "{personaje}", sucede en "{lugar}" y el tono es "{emocion}".
-        2. Usa lenguaje {config['vocabulary']} apropiado para {edad} años.
-        3. Después de 3-4 oraciones, DEBES incluir EXACTAMENTE esta marca: [PAUSA_INTERACCION]
-        4. Justo después de la pausa, escribe una pregunta invitando al niño a elegir quién aparecerá ahora.
-           Ejemplo: "¿Quién crees que aparecerá ahora para ayudar a Sol?"
-        5. La historia debe quedar ABIERTA, lista para continuar.
-        6. NO termines la historia, solo el primer acto.
-        
-        FORMATO EXACTO:
-        [Inicio de la historia]
-        [PAUSA_INTERACCION]
-        [Pregunta para elegir siguiente paso]
-        [OPCIONES] Opción corta 1 | Opción corta 2
-        
-        AHORA, crea la historia para "{personaje}" en "{lugar}":"""
+        prompt = f"""Eres un narrador magico de cuentos infantiles. 
 
-        print(f"--- Generando inicio para {personaje} en {lugar} ---")
-        completion = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-        )
-        print("--- Historia generada con éxito ---")
-        return completion.choices[0].message.content.strip()
+PERSONAJE PRINCIPAL: {objeto}
+EDAD DEL NINO: {edad} años
+VOCABULARIO: {config['vocabulary']}
+LONGITUD: aproximadamente {config['story_length']} palabras
+{catalog_context}
 
+INSTRUCCIONES CRITICAS:
+1. Crea el INICIO de una historia magica sobre "{objeto}"
+2. Usa lenguaje {config['vocabulary']} apropiado para {edad} años
+3. Despues de 3-4 oraciones, DEBES incluir EXACTAMENTE esta marca: [PAUSA_INTERACCION]
+4. Justo despues de la pausa, escribe una pregunta invitando al nino a dibujar algo nuevo
+   Ejemplo: "Quien crees que aparecera ahora? Dibujalo!"
+5. La historia debe quedar ABIERTA, lista para continuar
+6. NO termines la historia, solo el primer acto
 
+FORMATO EXACTO:
+[Inicio de la historia con 3-4 oraciones]
+[PAUSA_INTERACCION]
+[Pregunta invitando a dibujar]
+
+Ejemplo para "pollito":
+"Habia una vez un pollito amarillo llamado Sol que vivia en una granja magica. Una manana, Sol decidio explorar el bosque cercano. Mientras caminaba entre las flores, escucho un ruido extrano detras de los arbustos.
+[PAUSA_INTERACCION]
+Que crees que encontro Sol? Dibuja al nuevo amigo que aparecera!"
+
+AHORA, crea la historia para "{objeto}":"""
+
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            print(f"❌ Error llamando a Gemini API: {e}")
+            raise Exception(f"Error generando historia con IA: {str(e)}")
     
-    def continuar_historia(self, historia_actual: str, nuevo_personaje: str, 
-                          edad: int, interaccion_numero: int) -> str:
-        """Continúa la historia incorporando el nuevo personaje elegido"""
+    def continuar_historia(self, historia_actual: str, nuevo_objeto: str, 
+                          edad: int, interaccion_numero: int, 
+                          db: Optional[Session] = None) -> str:
+        """Continúa la historia incorporando el nuevo objeto"""
         config = self.get_age_config(edad)
-        max_interactions = config['interactions']
-        es_ultima = interaccion_numero >= max_interactions
+        max_interacciones = config['interactions']
         
-        prompt = f"""Eres un narrador mágico continuando un cuento infantil.
+        es_ultima_interaccion = interaccion_numero >= max_interacciones
+        
+        # Incrementar uso si está en catálogo
+        if db:
+            try:
+                crud.increment_catalog_usage(db, nuevo_objeto)
+            except Exception as e:
+                print(f"⚠️ No se pudo incrementar uso del catalogo: {e}")
+        
+        # Construir el prompt SIN acentos en las palabras clave del template
+        if es_ultima_interaccion:
+            formato_respuesta = "[FIN]"
+            instruccion_3 = "Concluye la historia con un final feliz y magico. Usa la marca [FIN]"
+        else:
+            formato_respuesta = "[PAUSA_INTERACCION]\n[Nueva pregunta para dibujar]"
+            instruccion_3 = "Incluye [PAUSA_INTERACCION] y otra pregunta para dibujar"
+        
+        prompt = f"""Eres un narrador magico continuando un cuento infantil.
 
-        HISTORIA HASTA AHORA:
-        {historia_actual}
+HISTORIA HASTA AHORA:
+{historia_actual}
 
-        NUEVO PERSONAJE QUE APARECE: {nuevo_personaje}
-        EDAD: {edad} años
-        INTERACCIÓN: {interaccion_numero} de {max_interacciones}
-        ES LA ÚLTIMA: {"SÍ" if es_ultima_interaccion else "NO"}
+NUEVO ELEMENTO DIBUJADO: {nuevo_objeto}
+EDAD: {edad} años
+INTERACCION: {interaccion_numero} de {max_interacciones}
+ES LA ULTIMA: {"SI" if es_ultima_interaccion else "NO"}
 
-        INSTRUCCIONES:
-        1. Integra naturalmente a "{nuevo_personaje}" en la historia.
-        2. Continúa con 3-4 oraciones.
-        3. {"Concluye la historia con un final feliz y mágico" if es_ultima_interaccion else "Incluye [PAUSA_INTERACCION] y otra pregunta para elegir el siguiente paso"}
+INSTRUCCIONES:
+1. Integra naturalmente "{nuevo_objeto}" en la historia
+2. Continua con 3-4 oraciones
+3. {instruccion_3}
 
-        FORMATO:
-        [Continuación natural integrando {nuevo_personaje}]
-        {"[FIN]" if es_ultima_interaccion else "[PAUSA_INTERACCION]\n[Nueva pregunta de elección]\n[OPCIONES] Opción corta 1 | Opción corta 2"}
+FORMATO:
+[Continuacion natural integrando {nuevo_objeto}]
+{formato_respuesta}
 
-        CONTINÚA LA HISTORIA:"""
+CONTINUA LA HISTORIA:"""
 
-        completion = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-        )
-        return completion.choices[0].message.content.strip()
-
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            print(f"❌ Error llamando a Gemini API: {e}")
+            raise Exception(f"Error continuando historia con IA: {str(e)}")
     
     def detectar_objeto_en_dibujo(self, descripcion_usuario: str) -> str:
         """
