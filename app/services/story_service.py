@@ -1,5 +1,5 @@
 from app.services.ai_service import ai_service
-from app.models import StoryResponse
+from app.schemas import StoryResponse
 import re
 
 class StoryService:

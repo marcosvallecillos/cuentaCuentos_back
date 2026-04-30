@@ -1,11 +1,13 @@
-from groq import Groq
+import google.generativeai as genai
 from app.config import settings
-from typing import Dict
+from typing import Dict, List, Optional
+from sqlalchemy.orm import Session
+from app import crud, models
+
 class AIService:
     def __init__(self):
-        self.client = Groq(api_key=settings.GROQ_API_KEY)
-        self.model = "llama-3.1-8b-instant"
-        print("✅ Groq inicializado")
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        self.model = genai.GenerativeModel('gemini-pro')
     
     def get_age_group(self, edad: int) -> str:
         """Determina el grupo de edad"""
@@ -21,83 +23,99 @@ class AIService:
         group = self.get_age_group(edad)
         return settings.AGE_GROUPS[group]
     
-    def generar_historia_inicial(self, personaje: str, lugar: str, emocion: str, edad: int) -> str:
-        """Genera el inicio de una historia interactiva basada en selecciones"""
+    def get_catalog_context(self, db: Session) -> str:
+        """Obtener contexto del catálogo para enriquecer prompts"""
+        protagonistas = crud.get_catalog_items(db, tipo=models.CatalogType.PROTAGONISTA)
+        lugares = crud.get_catalog_items(db, tipo=models.CatalogType.LUGAR)
+        emociones = crud.get_catalog_items(db, tipo=models.CatalogType.EMOCION)
+        
+        context = "\n\nCONTEXTO DE CATÁLOGO DISPONIBLE:\n"
+        
+        if protagonistas:
+            context += "Protagonistas sugeridos: " + ", ".join([p.nombre for p in protagonistas[:10]]) + "\n"
+        
+        if lugares:
+            context += "Lugares mágicos: " + ", ".join([l.nombre for l in lugares[:10]]) + "\n"
+        
+        if emociones:
+            context += "Emociones a explorar: " + ", ".join([e.nombre for e in emociones[:10]]) + "\n"
+        
+        return context
+    
+    def generar_historia_inicial(self, objeto: str, edad: int, db: Optional[Session] = None) -> str:
+        """Genera el inicio de una historia interactiva"""
         config = self.get_age_config(edad)
         
-        system_prompt = f"""Eres un narrador de cuentos infantiles experto en crear mundos mágicos y coherentes. 
-        Tu objetivo es cautivar a niños de {edad} años usando un vocabulario {config['vocabulary']}.
-        Mantén siempre un tono cálido, descriptivo y lleno de maravilla."""
-
-        user_prompt = f"""Crea el INICIO de una historia mágica.
+        prompt = f"""Eres un narrador mágico de cuentos infantiles. 
         
         PERSONAJE PRINCIPAL: {personaje}
         LUGAR: {lugar}
         EMOCIÓN: {emocion}
         EDAD DEL NIÑO: {edad} años
+        VOCABULARIO: {config['vocabulary']}
+        LONGITUD: aproximadamente {config['story_length']} palabras
         
-        INSTRUCCIONES:
-        1. Comienza la aventura de forma emocionante.
-        2. Después de 3-4 oraciones descriptivas, DEBES incluir EXACTAMENTE esta marca: [PAUSA_INTERACCION]
-        3. Justo después, haz una pregunta directa al niño para que elija qué sucede a continuación o quién aparece.
-        4. Define dos opciones claras y cortas.
+        INSTRUCCIONES CRÍTICAS:
+        1. Crea el INICIO de una historia mágica donde el protagonista es "{personaje}", sucede en "{lugar}" y el tono es "{emocion}".
+        2. Usa lenguaje {config['vocabulary']} apropiado para {edad} años.
+        3. Después de 3-4 oraciones, DEBES incluir EXACTAMENTE esta marca: [PAUSA_INTERACCION]
+        4. Justo después de la pausa, escribe una pregunta invitando al niño a elegir quién aparecerá ahora.
+           Ejemplo: "¿Quién crees que aparecerá ahora para ayudar a Sol?"
+        5. La historia debe quedar ABIERTA, lista para continuar.
+        6. NO termines la historia, solo el primer acto.
         
-        FORMATO:
-        [Texto de la historia]
+        FORMATO EXACTO:
+        [Inicio de la historia]
         [PAUSA_INTERACCION]
-        ¿A quién encontrará {personaje} ahora?
-        [OPCIONES] Opción A | Opción B
-        """
+        [Pregunta para elegir siguiente paso]
+        [OPCIONES] Opción corta 1 | Opción corta 2
+        
+        AHORA, crea la historia para "{personaje}" en "{lugar}":"""
 
         print(f"--- Generando inicio para {personaje} en {lugar} ---")
         completion = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": prompt}
             ],
         )
+        print("--- Historia generada con éxito ---")
         return completion.choices[0].message.content.strip()
 
-    def continuar_historia(self, historia_completa: str, eleccion_usuario: str, 
+
+    
+    def continuar_historia(self, historia_actual: str, nuevo_personaje: str, 
                           edad: int, interaccion_numero: int) -> str:
-        """Continúa la historia basándose en todo el contexto previo"""
+        """Continúa la historia incorporando el nuevo personaje elegido"""
         config = self.get_age_config(edad)
         max_interactions = config['interactions']
         es_ultima = interaccion_numero >= max_interactions
         
-        system_prompt = f"""Eres un narrador de cuentos infantiles para niños de {edad} años. 
-        Debes mantener la COHERENCIA total con lo que ha sucedido antes.
-        Usa vocabulario {config['vocabulary']}. """
+        prompt = f"""Eres un narrador mágico continuando un cuento infantil.
 
-        status_msg = "Este es el FINAL del cuento. Concluye de forma hermosa y cerrada." if es_ultima else "Continúa la aventura y termina con una nueva elección."
-        
-        user_prompt = f"""HISTORIA HASTA AHORA:
-        {historia_completa}
+        HISTORIA HASTA AHORA:
+        {historia_actual}
 
-        LO QUE EL NIÑO ELIGIÓ: "{eleccion_usuario}"
+        NUEVO PERSONAJE QUE APARECE: {nuevo_personaje}
+        EDAD: {edad} años
+        INTERACCIÓN: {interaccion_numero} de {max_interacciones}
+        ES LA ÚLTIMA: {"SÍ" if es_ultima_interaccion else "NO"}
 
         INSTRUCCIONES:
-        1. Integra la elección "{eleccion_usuario}" de forma fluida y mágica.
-        2. Escribe 4-5 oraciones que avancen la trama.
-        3. {status_msg}
-        
-        FORMATO SI NO ES EL FINAL:
-        [Continuación del cuento]
-        [PAUSA_INTERACCION]
-        [Pregunta de elección]
-        [OPCIONES] Opción 1 | Opción 2
+        1. Integra naturalmente a "{nuevo_personaje}" en la historia.
+        2. Continúa con 3-4 oraciones.
+        3. {"Concluye la historia con un final feliz y mágico" if es_ultima_interaccion else "Incluye [PAUSA_INTERACCION] y otra pregunta para elegir el siguiente paso"}
 
-        FORMATO SI ES EL FINAL:
-        [Final del cuento]
-        [FIN]
-        """
+        FORMATO:
+        [Continuación natural integrando {nuevo_personaje}]
+        {"[FIN]" if es_ultima_interaccion else "[PAUSA_INTERACCION]\n[Nueva pregunta de elección]\n[OPCIONES] Opción corta 1 | Opción corta 2"}
+
+        CONTINÚA LA HISTORIA:"""
 
         completion = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": prompt}
             ],
         )
         return completion.choices[0].message.content.strip()
