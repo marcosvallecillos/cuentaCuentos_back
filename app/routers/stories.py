@@ -7,7 +7,7 @@ from app.services.story_service import story_service
 from app.services.ai_service import ai_service
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/api", tags=["Stories"])
+router = APIRouter(tags=["Stories"])
 
 # ============= SCHEMAS COMPATIBLES CON FRONTEND ORIGINAL =============
 
@@ -26,6 +26,7 @@ class StoryResponseFrontend(BaseModel):
     audio_text: str
     necesita_interaccion: bool
     prompt_interaccion: Optional[str] = None
+    opciones: List[str] = []
     progreso: dict
 
 # ============= ENDPOINTS PARA APP PRINCIPAL =============
@@ -59,7 +60,7 @@ async def generar_historia(
         # Parsear
         resultado = story_service.parsear_historia(historia_raw, request.edad, 0)
         
-        print(f"✅ Historia parseada exitosamente")
+        print(f"[OK] Historia parseada exitosamente")
         print(f"Necesita interacción: {resultado.necesita_interaccion}")
         
         # Guardar en BD
@@ -74,7 +75,7 @@ async def generar_historia(
             )
             
             db_story = crud.create_story(db, story_create)
-            print(f"✅ Historia guardada con ID: {db_story.id}")
+            print(f"[OK] Historia guardada con ID: {db_story.id}")
             
             # Guardar primera interacción
             interaction = schemas.StoryInteractionCreate(
@@ -83,10 +84,10 @@ async def generar_historia(
                 texto_generado=resultado.historia
             )
             crud.create_story_interaction(db, db_story.id, interaction)
-            print(f"✅ Interacción guardada")
+            print(f"[OK] Interacción guardada")
             
         except Exception as db_error:
-            print(f"⚠️ Error guardando en BD (continuamos): {db_error}")
+            print(f"[WARN] Error guardando en BD (continuamos): {db_error}")
             import traceback
             traceback.print_exc()
         
@@ -96,11 +97,12 @@ async def generar_historia(
             audio_text=resultado.audio_text,
             necesita_interaccion=resultado.necesita_interaccion,
             prompt_interaccion=resultado.prompt_interaccion,
+            opciones=resultado.opciones,
             progreso=resultado.progreso
         )
         
     except Exception as e:
-        print(f"❌ ERROR FATAL en generar_historia: {str(e)}")
+        print(f"[ERROR] ERROR FATAL en generar_historia: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error al generar historia: {str(e)}")
@@ -140,18 +142,19 @@ async def continuar_historia(
             request.interaccion_numero
         )
         
-        print(f"✅ Continuación parseada")
+        print(f"[OK] Continuación parseada")
         
         return StoryResponseFrontend(
             historia=resultado.historia,
             audio_text=resultado.audio_text,
             necesita_interaccion=resultado.necesita_interaccion,
             prompt_interaccion=resultado.prompt_interaccion,
+            opciones=resultado.opciones,
             progreso=resultado.progreso
         )
         
     except Exception as e:
-        print(f"❌ ERROR FATAL en continuar_historia: {str(e)}")
+        print(f"[ERROR] ERROR FATAL en continuar_historia: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error al continuar historia: {str(e)}")

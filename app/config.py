@@ -5,13 +5,12 @@ load_dotenv()
 
 class Settings:
     # API Keys
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", 
-        "mysql+pymysql://root:@localhost:3307/cuentacuentos"
+        "mysql+pymysql://root:@localhost:3306/cuentacuentos"
     )
     
     # Admin

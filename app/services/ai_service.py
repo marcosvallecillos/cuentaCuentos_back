@@ -1,14 +1,17 @@
-import google.generativeai as genai
+# import google.generativeai as genai
 from app.config import settings
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from app import crud, models
-
+from groq import Groq
 class AIService:
-    def __init__(self):
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-pro')
-    
+    def __init__(self): 
+        if not settings.GROQ_API_KEY:
+            raise ValueError("[ERROR] GROQ_API_KEY no encontrada. Verifica tu archivo .env en la raíz del proyecto.")
+        self.client = Groq(api_key=settings.GROQ_API_KEY) 
+        self.model = "llama-3.1-8b-instant" 
+        print("[OK] Groq inicializado")
+
     def get_age_group(self, edad: int) -> str:
         """Determina el grupo de edad"""
         if 3 <= edad <= 5:
@@ -43,7 +46,7 @@ class AIService:
             
             return context
         except Exception as e:
-            print(f"⚠️ Error obteniendo catalogo: {e}")
+            print(f"[WARN] Error obteniendo catalogo: {e}")
             return ""
     
     def generar_historia_inicial(self, objeto: str, edad: int, db: Optional[Session] = None) -> str:
@@ -58,7 +61,7 @@ class AIService:
             try:
                 crud.increment_catalog_usage(db, objeto)
             except Exception as e:
-                print(f"⚠️ No se pudo incrementar uso del catalogo: {e}")
+                print(f"[WARN] No se pudo incrementar uso del catalogo: {e}")
         
         prompt = f"""Eres un narrador magico de cuentos infantiles. 
 
@@ -71,29 +74,43 @@ LONGITUD: aproximadamente {config['story_length']} palabras
 INSTRUCCIONES CRITICAS:
 1. Crea el INICIO de una historia magica sobre "{objeto}"
 2. Usa lenguaje {config['vocabulary']} apropiado para {edad} años
-3. Despues de 3-4 oraciones, DEBES incluir EXACTAMENTE esta marca: [PAUSA_INTERACCION]
-4. Justo despues de la pausa, escribe una pregunta invitando al nino a dibujar algo nuevo
-   Ejemplo: "Quien crees que aparecera ahora? Dibujalo!"
+3. Despues de 3-4 oraciones, DEBES incluir EXACTAMENTE esta marca: [OPCIONES]
+4. Justo despues de la marca, escribe una pregunta sobre que deberia pasar y luego 3 opciones numeradas.
+   Ejemplo: "¿Que camino deberia tomar?
+   1. El camino de las flores
+   2. El tunel de cristal
+   3. El puente de nubes"
 5. La historia debe quedar ABIERTA, lista para continuar
 6. NO termines la historia, solo el primer acto
 
 FORMATO EXACTO:
 [Inicio de la historia con 3-4 oraciones]
-[PAUSA_INTERACCION]
-[Pregunta invitando a dibujar]
+[OPCIONES]
+[Pregunta sobre la continuacion]
+1. [Opcion 1]
+2. [Opcion 2]
+3. [Opcion 3]
 
 Ejemplo para "pollito":
-"Habia una vez un pollito amarillo llamado Sol que vivia en una granja magica. Una manana, Sol decidio explorar el bosque cercano. Mientras caminaba entre las flores, escucho un ruido extrano detras de los arbustos.
-[PAUSA_INTERACCION]
-Que crees que encontro Sol? Dibuja al nuevo amigo que aparecera!"
+"Habia una vez un pollito amarillo llamado Sol que vivia en una granja magica. Una manana, Sol decidio explorar el bosque cercano. Mientras caminaba entre las flores, encontro tres puertas misteriosas.
+[OPCIONES]
+¿Que puerta deberia abrir Sol para continuar su aventura?
+1. La puerta roja que huele a chocolate
+2. La puerta azul que brilla como el mar
+3. La puerta verde que tiene hojas de menta"
 
 AHORA, crea la historia para "{objeto}":"""
 
         try:
-            response = self.model.generate_content(prompt)
-            return response.text.strip()
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=500
+            )
+            return completion.choices[0].message.content.strip()
         except Exception as e:
-            print(f"❌ Error llamando a Gemini API: {e}")
+            print(f"[ERROR] Error llamando a groq API: {e}")
             raise Exception(f"Error generando historia con IA: {str(e)}")
     
     def continuar_historia(self, historia_actual: str, nuevo_objeto: str, 
@@ -110,15 +127,15 @@ AHORA, crea la historia para "{objeto}":"""
             try:
                 crud.increment_catalog_usage(db, nuevo_objeto)
             except Exception as e:
-                print(f"⚠️ No se pudo incrementar uso del catalogo: {e}")
+                print(f"[WARN] No se pudo incrementar uso del catalogo: {e}")
         
         # Construir el prompt SIN acentos en las palabras clave del template
         if es_ultima_interaccion:
             formato_respuesta = "[FIN]"
             instruccion_3 = "Concluye la historia con un final feliz y magico. Usa la marca [FIN]"
         else:
-            formato_respuesta = "[PAUSA_INTERACCION]\n[Nueva pregunta para dibujar]"
-            instruccion_3 = "Incluye [PAUSA_INTERACCION] y otra pregunta para dibujar"
+            formato_respuesta = "[OPCIONES]\n[Pregunta de seguimiento]\n1. [Opcion A]\n2. [Opcion B]\n3. [Opcion C]"
+            instruccion_3 = "Incluye [OPCIONES], una pregunta y 3 nuevas opciones numeradas para que la historia siga."
         
         prompt = f"""Eres un narrador magico continuando un cuento infantil.
 
@@ -131,21 +148,26 @@ INTERACCION: {interaccion_numero} de {max_interacciones}
 ES LA ULTIMA: {"SI" if es_ultima_interaccion else "NO"}
 
 INSTRUCCIONES:
-1. Integra naturalmente "{nuevo_objeto}" en la historia
-2. Continua con 3-4 oraciones
+1. Integra naturalmente la eleccion del nino: "{nuevo_objeto}" en la historia
+2. Continua con 3-4 oraciones de narrativa magica
 3. {instruccion_3}
 
 FORMATO:
-[Continuacion natural integrando {nuevo_objeto}]
+[Continuacion natural integrando la eleccion: {nuevo_objeto}]
 {formato_respuesta}
 
 CONTINUA LA HISTORIA:"""
 
         try:
-            response = self.model.generate_content(prompt)
-            return response.text.strip()
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=500
+            )
+            return completion.choices[0].message.content.strip()
         except Exception as e:
-            print(f"❌ Error llamando a Gemini API: {e}")
+            print(f"[ERROR] Error llamando a groq API: {e}")
             raise Exception(f"Error continuando historia con IA: {str(e)}")
     
     def detectar_objeto_en_dibujo(self, descripcion_usuario: str) -> str:

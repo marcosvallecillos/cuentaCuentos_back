@@ -10,7 +10,10 @@ ENV/
 
 # Variables de entorno (sensibles)
 .env
+.env.prod
+.env.prod.local
 .env.*
+
 !.env.example
 
 # Cache de Python

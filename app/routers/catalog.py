@@ -4,7 +4,7 @@ from typing import List, Optional
 from app import schemas, crud, models
 from app.database import get_db
 
-router = APIRouter(prefix="/api/catalog", tags=["Catalog"])
+router = APIRouter(tags=["Catalog"])
 
 @router.post("/", response_model=schemas.CatalogItemResponse)
 async def crear_item(
