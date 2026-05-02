@@ -142,19 +142,25 @@ AHORA, crea la historia para "{objeto}":"""
 HISTORIA HASTA AHORA:
 {historia_actual}
 
-NUEVO ELEMENTO DIBUJADO: {nuevo_objeto}
+NUEVO ELEMENTO PARA INTEGRAR: {nuevo_objeto}
 EDAD: {edad} años
 INTERACCION: {interaccion_numero} de {max_interacciones}
 ES LA ULTIMA: {"SI" if es_ultima_interaccion else "NO"}
 
 INSTRUCCIONES:
-1. Integra naturalmente la eleccion del nino: "{nuevo_objeto}" en la historia
-2. Continua con 3-4 oraciones de narrativa magica
+1. Integra naturalmente la eleccion del nino: "{nuevo_objeto}" en la historia.
+2. Continua con 3-4 oraciones de narrativa magica y emocionante.
 3. {instruccion_3}
 
-FORMATO:
-[Continuacion natural integrando la eleccion: {nuevo_objeto}]
+FORMATO DE RESPUESTA:
+[NARRATIVA]
+(Escribe aqui la continuacion de la historia)
+
 {formato_respuesta}
+
+REGLAS:
+- NO incluyas frases como "[Continuacion natural...]" o "[Pregunta de seguimiento]" en tu respuesta final.
+- La seccion [NARRATIVA] debe contener solo el texto del cuento.
 
 CONTINUA LA HISTORIA:"""
 

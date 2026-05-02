@@ -57,7 +57,7 @@ class CatalogItem(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Estadísticas
-    veces_usado = Column(Integer, default=0)
+    veces_usado = Column(Integer, default=0, server_default="0")
 
 class AdminUser(Base):
     __tablename__ = "admin_users"

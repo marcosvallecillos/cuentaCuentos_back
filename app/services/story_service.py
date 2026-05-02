@@ -17,8 +17,20 @@ class StoryService:
                         interaccion_numero: int) -> StoryResponse:
         """Parsea la historia y detecta puntos de interacción y opciones"""
         
-        # Limpiar etiquetas comunes que la IA a veces incluye
-        texto_limpio = texto_historia.replace("[Inicio de la historia]", "").replace("[Continuación natural]", "").strip()
+        # 1. Limpiar etiquetas de estructura que la IA a veces incluye literalmente
+        # Quitamos cualquier bloque entre corchetes al inicio que parezca técnico
+        texto_limpio = re.sub(r'^\[(NARRATIVA|CONTINUACION|INICIO)[^\]]*\]\s*', '', texto_historia, flags=re.IGNORECASE)
+        
+        # Limpiar otras etiquetas comunes
+        etiquetas_a_borrar = [
+            "[Inicio de la historia]", "[Continuación natural]", "[Continuacion natural]",
+            "[Continuacion natural integrando la eleccion]", "[NARRATIVA]", "[Narrativa]"
+        ]
+        for tag in etiquetas_a_borrar:
+            texto_limpio = texto_limpio.replace(tag, "")
+            
+        # Limpiar cualquier cosa que empiece con "[Continuacion natural integrando..."
+        texto_limpio = re.sub(r'\[Continuacion natural integrando[^\]]*\]', '', texto_limpio).strip()
         
         # Buscar marcas
         tiene_opciones = "[OPCIONES]" in texto_limpio
@@ -27,6 +39,9 @@ class StoryService:
         if es_final:
             # Historia terminada
             historia_final = texto_limpio.split("[FIN]")[0].split("[FINAL]")[0].strip()
+            # Limpiar posibles corchetes residuales
+            historia_final = re.sub(r'\[[^\]]*\]', '', historia_final).strip()
+            
             return StoryResponse(
                 historia=historia_final,
                 audio_text=historia_final,
@@ -41,33 +56,44 @@ class StoryService:
         
         if tiene_opciones:
             print(f"--- Opciones detectadas en historia ---")
-            # Separar historia, prompt y opciones
-            # Formato esperado:
-            # Historia...
-            # [OPCIONES]
-            # ¿Qué quieres hacer?
-            # 1. Opción A
-            # 2. Opción B
-            # 3. Opción C
-            
             partes = texto_limpio.split("[OPCIONES]")
             historia_limpia = partes[0].strip()
+            # Limpiar posibles corchetes residuales en la historia
+            historia_limpia = re.sub(r'\[[^\]]*\]', '', historia_limpia).strip()
+            
             resto = partes[1].strip() if len(partes) > 1 else ""
             
             lineas = [l.strip() for l in resto.split("\n") if l.strip()]
-            prompt_interaccion = lineas[0] if lineas else "¿Qué quieres que pase ahora?"
+            
+            # El prompt es la primera línea que no sea un placeholder
+            prompt_interaccion = "¿Qué quieres que pase ahora?"
+            opciones_inicio_idx = 0
+            
+            for i, linea in enumerate(lineas):
+                if "[Pregunta de seguimiento]" in linea or "[PREGUNTA]" in linea:
+                    continue
+                if not any(linea.startswith(prefix) for prefix in ["1.", "2.", "3.", "4.", "-"]):
+                    prompt_interaccion = linea
+                    opciones_inicio_idx = i + 1
+                    break
             
             # Extraer opciones (líneas que empiezan con número o guión)
             opciones = []
-            for linea in lineas[1:]:
+            for linea in lineas[opciones_inicio_idx:]:
+                # Ignorar placeholders literales
+                if "[Pregunta de seguimiento]" in linea or "[Opcion" in linea:
+                    continue
+                    
                 # Limpiar números (1., 1-, etc) o guiones al inicio
                 opc = re.sub(r'^(\d+[\.\-\)]\s*|-\s*)', '', linea).strip()
-                if opc:
+                if opc and len(opc) > 2: # Evitar opciones demasiado cortas o vacías
                     opciones.append(opc)
             
             # Si no se detectaron opciones claras, usar las 3 primeras líneas después del prompt
-            if not opciones and len(lineas) > 1:
-                opciones = lineas[1:4]
+            if not opciones and len(lineas) > opciones_inicio_idx:
+                for l in lineas[opciones_inicio_idx:opciones_inicio_idx+3]:
+                    if "[" not in l:
+                        opciones.append(l)
 
             print(f"Prompt: {prompt_interaccion}")
             print(f"Opciones: {opciones}")
@@ -84,19 +110,9 @@ class StoryService:
                 }
             )
         
-        # Caso genérico o marca antigua [PAUSA_INTERACCION]
-        if "[PAUSA_INTERACCION]" in texto_limpio:
-            partes = texto_limpio.split("[PAUSA_INTERACCION]")
-            return StoryResponse(
-                historia=partes[0].strip(),
-                audio_text=partes[0].strip(),
-                necesita_interaccion=True,
-                prompt_interaccion=partes[1].strip() if len(partes) > 1 else "¿Qué pasa después?",
-                opciones=["Continuar la aventura"],
-                progreso={"completado": False, "interaccion_actual": interaccion_numero}
-            )
+        # Caso genérico - Limpiar cualquier corchete que haya quedado
+        texto_limpio = re.sub(r'\[[^\]]*\]', '', texto_limpio).strip()
 
-        # Sin pausa ni fin
         return StoryResponse(
             historia=texto_limpio,
             audio_text=texto_limpio,

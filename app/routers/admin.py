@@ -8,7 +8,7 @@ from app import schemas, crud, models
 from app.database import get_db
 from app.config import settings
 
-router = APIRouter(prefix="/api/admin", tags=["Admin"])
+router = APIRouter(tags=["Admin"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()

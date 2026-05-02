@@ -87,7 +87,7 @@ class CatalogItemResponse(CatalogItemBase):
     id: int
     activo: bool
     created_at: datetime
-    veces_usado: int
+    veces_usado: int = 0
     
     class Config:
         from_attributes = True
