@@ -86,8 +86,8 @@ class CatalogItemUpdate(BaseModel):
 class CatalogItemResponse(CatalogItemBase):
     id: int
     activo: bool
-    created_at: datetime
-    veces_usado: int = 0
+    created_at: Optional[datetime] = None
+    veces_usado: Optional[int] = 0
     
     class Config:
         from_attributes = True
