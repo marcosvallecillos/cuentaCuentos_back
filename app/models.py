@@ -9,12 +9,13 @@ class CatalogType(str, enum.Enum):
     LUGAR = "lugar"
     EMOCION = "emocion"
 
+# Historias generadas
 class Story(Base):
     __tablename__ = "stories"
     
     id = Column(Integer, primary_key=True, index=True)
     edad_usuario = Column(Integer, nullable=False)
-    grupo_edad = Column(String(10), nullable=False)  # "3-5", "6-8", "9-12"
+    grupo_edad = Column(String(10), nullable=False)  
     
     # Historia completa
     texto_completo = Column(Text, nullable=False)
@@ -26,6 +27,7 @@ class Story(Base):
     # Relaciones
     interacciones = relationship("StoryInteraction", back_populates="story", cascade="all, delete-orphan")
 
+# Decisiones del usuario
 class StoryInteraction(Base):
     __tablename__ = "story_interactions"
     
@@ -41,6 +43,7 @@ class StoryInteraction(Base):
     # Relación
     story = relationship("Story", back_populates="interacciones")
 
+# Catálogo de elementos
 class CatalogItem(Base):
     __tablename__ = "catalog_items"
     
@@ -70,3 +73,15 @@ class AdminUser(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
+
+class ConsentimientoParental(Base):
+    __tablename__ = "consentimientos_parentales"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    consent_id = Column(String(50), unique=True, nullable=False, index=True)
+    consent_parental = Column(Boolean, nullable=False, default=True)
+    aceptacion_privacidad = Column(Boolean, nullable=False, default=True)
+    aceptacion_tratamiento = Column(Boolean, nullable=False, default=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    ip_origen = Column(String(50), nullable=True)
+    user_agent = Column(Text, nullable=True)
