@@ -97,7 +97,7 @@ def create_catalog_item(db: Session, item: schemas.CatalogItemCreate) -> models.
 def get_catalog_items(
     db: Session, 
     tipo: Optional[models.CatalogType] = None,
-    activo: bool = True
+    activo: Optional[bool] = None
 ) -> List[models.CatalogItem]:
     """Listar items de catálogo"""
     query = db.query(models.CatalogItem)
@@ -105,8 +105,8 @@ def get_catalog_items(
     if tipo:
         query = query.filter(models.CatalogItem.tipo == tipo)
     
-    if activo:
-        query = query.filter(models.CatalogItem.activo == True)
+    if activo is not None:
+        query = query.filter(models.CatalogItem.activo == activo)
     
     return query.order_by(models.CatalogItem.nombre).all()
 

@@ -22,10 +22,12 @@ async def crear_item(
 async def listar_items(
     tipo: Optional[models.CatalogType] = None,
     activo: bool = True,
+    todas: bool = False,
     db: Session = Depends(get_db)
 ):
     """Listar items del catálogo"""
-    items = crud.get_catalog_items(db, tipo=tipo, activo=activo)
+    activo_param = None if todas else activo
+    items = crud.get_catalog_items(db, tipo=tipo, activo=activo_param)
     return [schemas.CatalogItemResponse.model_validate(item) for item in items]
 
 @router.get("/{item_id}", response_model=schemas.CatalogItemResponse)
