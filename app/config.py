@@ -10,7 +10,8 @@ class Settings:
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", 
-        "mysql+pymysql://root:@localhost:3306/cuentacuentos"
+        "mysql+pymysql://root:PKdlAfRUqUagSSoGgcUgLowMYdqEHznj@mysql.railway.internal:3306/railway"
+       # "mysql+pymysql://root:@localhost:3306/cuentacuentos"
     )
     
     # Admin
