@@ -11,8 +11,9 @@ class Settings:
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", 
         "mysql+pymysql://root:PKdlAfRUqUagSSoGgcUgLowMYdqEHznj@mysql.railway.internal:3306/railway"
-       # "mysql+pymysql://root:@localhost:3306/cuentacuentos"
     )
+    if DATABASE_URL.startswith("mysql://"):
+        DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
     
     # Admin
     ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
